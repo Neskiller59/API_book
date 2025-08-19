@@ -6,6 +6,7 @@ use App\Repository\AuthorRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Serializer\Annotation\Groups;
 
 #[ORM\Entity(repositoryClass: AuthorRepository::class)]
 class Author
@@ -13,23 +14,26 @@ class Author
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
+    #[Groups(['book:read'])]
     private ?int $id = null;
 
     #[ORM\Column(length: 255)]
+    #[Groups(['book:read'])]
     private ?string $firstName = null;
 
     #[ORM\Column(length: 255)]
+    #[Groups(['book:read'])]
     private ?string $lastName = null;
 
     /**
      * @var Collection<int, Book>
      */
     #[ORM\OneToMany(targetEntity: Book::class, mappedBy: 'author')]
-    private Collection $Books;
+    private Collection $books;
 
     public function __construct()
     {
-        $this->Books = new ArrayCollection();
+        $this->books = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -45,7 +49,6 @@ class Author
     public function setFirstName(string $firstName): static
     {
         $this->firstName = $firstName;
-
         return $this;
     }
 
@@ -57,7 +60,6 @@ class Author
     public function setLastName(string $lastName): static
     {
         $this->lastName = $lastName;
-
         return $this;
     }
 
@@ -66,28 +68,25 @@ class Author
      */
     public function getBooks(): Collection
     {
-        return $this->Books;
+        return $this->books;
     }
 
     public function addBook(Book $book): static
     {
-        if (!$this->Books->contains($book)) {
-            $this->Books->add($book);
+        if (!$this->books->contains($book)) {
+            $this->books->add($book);
             $book->setAuthor($this);
         }
-
         return $this;
     }
 
     public function removeBook(Book $book): static
     {
-        if ($this->Books->removeElement($book)) {
-            // set the owning side to null (unless already changed)
+        if ($this->books->removeElement($book)) {
             if ($book->getAuthor() === $this) {
                 $book->setAuthor(null);
             }
         }
-
         return $this;
     }
 }
