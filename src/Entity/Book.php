@@ -16,6 +16,12 @@ class Book
     #[ORM\Column(length: 255)]
     private ?string $title = null;
 
+    #[ORM\Column(type: "text", nullable: true)]
+    private ?string $coverText = null;
+
+    #[ORM\ManyToOne(inversedBy: 'Books')]
+    private ?Author $author = null;
+
     public function getId(): ?int
     {
         return $this->id;
@@ -29,6 +35,28 @@ class Book
     public function setTitle(string $title): static
     {
         $this->title = $title;
+        return $this;
+    }
+
+    public function getCoverText(): ?string
+    {
+        return $this->coverText;
+    }
+
+    public function setCoverText(?string $coverText): static
+    {
+        $this->coverText = $coverText;
+        return $this;
+    }
+
+    public function getAuthor(): ?Author
+    {
+        return $this->author;
+    }
+
+    public function setAuthor(?Author $author): static
+    {
+        $this->author = $author;
 
         return $this;
     }
