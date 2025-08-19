@@ -14,21 +14,22 @@ class Author
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
-    #[Groups(['book:read'])]
+    #[Groups(['getAuthor', 'getBooks'])]
     private ?int $id = null;
 
     #[ORM\Column(length: 255)]
-    #[Groups(['book:read'])]
+    #[Groups(['getAuthor', 'getBooks'])]
     private ?string $firstName = null;
 
     #[ORM\Column(length: 255)]
-    #[Groups(['book:read'])]
+    #[Groups(['getAuthor', 'getBooks'])]
     private ?string $lastName = null;
 
     /**
      * @var Collection<int, Book>
      */
     #[ORM\OneToMany(targetEntity: Book::class, mappedBy: 'author')]
+    #[Groups(['getAuthor'])] // ⚠️ On affiche les livres uniquement quand on récupère un auteur
     private Collection $books;
 
     public function __construct()

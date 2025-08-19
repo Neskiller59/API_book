@@ -12,19 +12,19 @@ class Book
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
-    #[Groups(['getBooks'])]
+    #[Groups(['getBooks', 'getAuthor'])]
     private ?int $id = null;
 
     #[ORM\Column(length: 255)]
-    #[Groups(['getBooks'])]
+    #[Groups(['getBooks', 'getAuthor'])]
     private ?string $title = null;
 
     #[ORM\Column(type: "text", nullable: true)]
-    #[Groups(['getBooks'])]
+    #[Groups(['getBooks', 'getAuthor'])]
     private ?string $coverText = null;
 
     #[ORM\ManyToOne(inversedBy: 'books')]
-    #[Groups(['getBooks'])]
+    #[Groups(['getBooks'])] // On inclut juste l’auteur quand on demande des livres
     private ?Author $author = null;
 
     public function getId(): ?int
