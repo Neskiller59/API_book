@@ -13,13 +13,10 @@ class AppFixtures extends Fixture
       // Création des auteurs.
       $listAuthor = [];
       for ($i = 0; $i < 10; $i++) {
-         // Création de l'auteur lui-même.
-         $author = new Author();
-         $author->setFirstName("Prénom " . $i);
-         $author->setLastName("Nom " . $i);
-         $manager->persist($author);
-         // On sauvegarde l'auteur créé dans un tableau.
-         $listAuthor[] = $author;
+   $author = new Author();
+   $author->setName("Prénom $i Nom $i");
+   $manager->persist($author);
+   $listAuthor[] = $author;
       }
 
       // Création d'une vingtaine de livres ayant pour titre

@@ -19,17 +19,15 @@ class Author
 
     #[ORM\Column(length: 255)]
     #[Groups(['getAuthor', 'getBooks'])]
-    private ?string $firstName = null;
+    private ?string $name = null;
 
-    #[ORM\Column(length: 255)]
-    #[Groups(['getAuthor', 'getBooks'])]
-    private ?string $lastName = null;
-
-    /**
-     * @var Collection<int, Book>
-     */
-    #[ORM\OneToMany(targetEntity: Book::class, mappedBy: 'author')]
-    #[Groups(['getAuthor'])] // ⚠️ On affiche les livres uniquement quand on récupère un auteur
+    #[ORM\OneToMany(
+        mappedBy: 'author',
+        targetEntity: Book::class,
+        cascade: ['remove'],  // suppression en cascade
+        orphanRemoval: true   // enlève aussi si détaché
+    )]
+    #[Groups(['getAuthor'])] // permet de voir les livres d’un auteur
     private Collection $books;
 
     public function __construct()
@@ -42,25 +40,15 @@ class Author
         return $this->id;
     }
 
-    public function getFirstName(): ?string
+    public function getName(): ?string
     {
-        return $this->firstName;
+        return $this->name;
     }
 
-    public function setFirstName(string $firstName): static
+    public function setName(string $name): self
     {
-        $this->firstName = $firstName;
-        return $this;
-    }
+        $this->name = $name;
 
-    public function getLastName(): ?string
-    {
-        return $this->lastName;
-    }
-
-    public function setLastName(string $lastName): static
-    {
-        $this->lastName = $lastName;
         return $this;
     }
 
@@ -72,22 +60,25 @@ class Author
         return $this->books;
     }
 
-    public function addBook(Book $book): static
+    public function addBook(Book $book): self
     {
         if (!$this->books->contains($book)) {
             $this->books->add($book);
             $book->setAuthor($this);
         }
+
         return $this;
     }
 
-    public function removeBook(Book $book): static
+    public function removeBook(Book $book): self
     {
         if ($this->books->removeElement($book)) {
+            // Si le livre appartient encore à cet auteur, on l’enlève
             if ($book->getAuthor() === $this) {
                 $book->setAuthor(null);
             }
         }
+
         return $this;
     }
 }
