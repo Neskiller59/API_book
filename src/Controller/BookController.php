@@ -21,11 +21,41 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Contracts\Cache\TagAwareCacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
+use Nelmio\ApiDocBundle\Annotation\Model;
+use Nelmio\ApiDocBundle\Annotation\Security;
+use OpenApi\Annotations as OA;
 
 #[Route('/api/books')]
 class BookController extends AbstractController
 {
     // ---------------- List with pagination ----------------
+    /**
+     * @OA\Get(
+     *     path="/api/books",
+     *     summary="Récupère la liste des livres",
+     *     @OA\Parameter(
+     *         name="page",
+     *         in="query",
+     *         description="Numéro de page",
+     *         @OA\Schema(type="integer", default=1)
+     *     ),
+     *     @OA\Parameter(
+     *         name="limit",
+     *         in="query",
+     *         description="Nombre de livres par page",
+     *         @OA\Schema(type="integer", default=5)
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Liste des livres",
+     *         @OA\JsonContent(
+     *             type="array",
+     *             @OA\Items(ref=@Model(type=Book::class, groups={"getBooks"}))
+     *         )
+     *     )
+     * )
+     * @Security(name="bearerAuth")
+     */
     #[Route('', name: 'books_list', methods: ['GET'])]
     public function getAllBooks(
         BookRepository $bookRepository,
@@ -47,6 +77,26 @@ class BookController extends AbstractController
     }
 
     // ---------------- Get detail book ----------------
+    /**
+     * @OA\Get(
+     *     path="/api/books/{id}",
+     *     summary="Récupère un livre par son ID",
+     *     @OA\Parameter(
+     *         name="id",
+     *         in="path",
+     *         required=true,
+     *         description="ID du livre",
+     *         @OA\Schema(type="integer")
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Livre récupéré",
+     *         @OA\JsonContent(ref=@Model(type=Book::class, groups={"getBooks"}))
+     *     ),
+     *     @OA\Response(response=404, description="Livre non trouvé")
+     * )
+     * @Security(name="bearerAuth")
+     */
     #[Route('/{id}', name: 'books_detail', methods: ['GET'])]
     public function getBook(
         Book $book,
@@ -54,10 +104,7 @@ class BookController extends AbstractController
         VersioningService $versioningService
     ): JsonResponse {
         $version = $versioningService->getVersion();
-
-        $context = SerializationContext::create()
-            ->setGroups(['getBooks'])
-            ->setVersion($version);
+        $context = SerializationContext::create()->setGroups(['getBooks'])->setVersion($version);
 
         $jsonBook = $serializer->serialize($book, 'json', $context);
 
@@ -65,6 +112,20 @@ class BookController extends AbstractController
     }
 
     // ---------------- Create book ----------------
+    /**
+     * @OA\Post(
+     *     path="/api/books",
+     *     summary="Créer un livre",
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(ref=@Model(type=Book::class))
+     *     ),
+     *     @OA\Response(response=201, description="Livre créé"),
+     *     @OA\Response(response=400, description="Erreur de validation"),
+     *     @OA\Response(response=404, description="Auteur non trouvé")
+     * )
+     * @Security(name="bearerAuth")
+     */
     #[Route('', name: 'books_create', methods: ['POST'])]
     #[IsGranted('ROLE_ADMIN', message: 'Vous n\'avez pas les droits pour créer un livre.')]
     public function createBook(
@@ -76,26 +137,13 @@ class BookController extends AbstractController
         ValidatorInterface $validator,
         TagAwareCacheInterface $cache
     ): JsonResponse {
-        /** @var Book $book */
         $book = $serializer->deserialize($request->getContent(), Book::class, 'json');
 
-        $content = $request->toArray();
-        $idAuthor = $content['idAuthor'] ?? null;
-        if ($idAuthor) {
-            $author = $authorRepository->find($idAuthor);
-            if (!$author) {
-                return new JsonResponse(['error' => 'Auteur non trouvé'], Response::HTTP_NOT_FOUND);
-            }
-            $book->setAuthor($author);
-        }
+        $this->setAuthorFromRequest($book, $request->toArray(), $authorRepository);
 
         $errors = $validator->validate($book);
         if (count($errors) > 0) {
-            $errorMessages = [];
-            foreach ($errors as $error) {
-                $errorMessages[$error->getPropertyPath()] = $error->getMessage();
-            }
-            return new JsonResponse($errorMessages, Response::HTTP_BAD_REQUEST);
+            return $this->formatValidationErrors($errors);
         }
 
         $em->persist($book);
@@ -123,26 +171,13 @@ class BookController extends AbstractController
         $context = DeserializationContext::create();
         $context->setAttribute('target', $currentBook);
 
-        /** @var Book $updatedBook */
         $updatedBook = $serializer->deserialize($request->getContent(), Book::class, 'json', $context);
 
-        $content = $request->toArray();
-        $idAuthor = $content['idAuthor'] ?? null;
-        if ($idAuthor) {
-            $author = $authorRepository->find($idAuthor);
-            if (!$author) {
-                return new JsonResponse(['error' => 'Auteur non trouvé'], Response::HTTP_NOT_FOUND);
-            }
-            $updatedBook->setAuthor($author);
-        }
+        $this->setAuthorFromRequest($updatedBook, $request->toArray(), $authorRepository);
 
         $errors = $validator->validate($updatedBook);
         if (count($errors) > 0) {
-            $errorMessages = [];
-            foreach ($errors as $error) {
-                $errorMessages[$error->getPropertyPath()] = $error->getMessage();
-            }
-            return new JsonResponse($errorMessages, Response::HTTP_BAD_REQUEST);
+            return $this->formatValidationErrors($errors);
         }
 
         $em->persist($updatedBook);
@@ -162,5 +197,30 @@ class BookController extends AbstractController
         $cache->invalidateTags(["booksCache"]);
 
         return new JsonResponse(null, Response::HTTP_NO_CONTENT);
+    }
+
+    // ---------------- Helper methods ----------------
+    private function setAuthorFromRequest(Book $book, array $content, AuthorRepository $authorRepository): void
+    {
+        $idAuthor = $content['idAuthor'] ?? null;
+        if ($idAuthor) {
+            $author = $authorRepository->find($idAuthor);
+            if (!$author) {
+                throw $this->createNotFoundException('Auteur non trouvé');
+            }
+            $book->setAuthor($author);
+        }
+    }
+
+    private function formatValidationErrors($errors): JsonResponse
+    {
+        $formatted = [];
+        foreach ($errors as $error) {
+            $formatted[] = [
+                'field' => $error->getPropertyPath(),
+                'message' => $error->getMessage()
+            ];
+        }
+        return new JsonResponse(['errors' => $formatted], Response::HTTP_BAD_REQUEST);
     }
 }

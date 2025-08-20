@@ -24,8 +24,8 @@ security:
                 success_handler: lexik_jwt_authentication.handler.authentication_success
                 failure_handler: lexik_jwt_authentication.handler.authentication_failure
 
-            # PAS de custom_authenticators ici
-
     access_control:
-        - { path: ^/api/login_check, roles: IS_AUTHENTICATED_ANONYMOUSLY }
+        - { path: ^/api/login_check, roles: PUBLIC_ACCESS }
+        - { path: ^/api/login, roles: PUBLIC_ACCESS }
+        - { path: ^/api/doc, roles: PUBLIC_ACCESS }
         - { path: ^/api, roles: IS_AUTHENTICATED_FULLY }

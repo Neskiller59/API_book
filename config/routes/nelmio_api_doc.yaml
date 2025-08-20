@@ -4,9 +4,64 @@ app.swagger:
     methods: GET
     defaults: { _controller: nelmio_api_doc.controller.swagger }
 
-# Requires the Asset component and the Twig bundle
-# $ composer require twig asset
+# Swagger UI
 app.swagger_ui:
     path: /api/doc
     methods: GET
     defaults: { _controller: nelmio_api_doc.controller.swagger_ui }
+
+nelmio_api_doc:
+    documentation:
+        info:
+            title: Books
+            description: |
+                Une API d'OpenClassrooms avec des
+                livres, des autrices et des auteurs !
+            version: 2.0.0
+        paths:
+            /api/login_check:
+                post:
+                    operationId: postCredentialsItem
+                    tags:
+                        - Token
+                    summary: Permet d'obtenir le token JWT pour se logger.
+                    requestBody:
+                        description: Crée un nouveau token JWT
+                        content:
+                            application/json:
+                                schema:
+                                    $ref: '#/components/schemas/Credentials'
+                    responses:
+                        '200':
+                            description: Récupère le token JWT
+                            content:
+                                application/json:
+                                    schema:
+                                        $ref: '#/components/schemas/Token'
+        components:
+            schemas:
+                Token:
+                    type: object
+                    properties:
+                        token:
+                            type: string
+                            readOnly: true
+                Credentials:
+                    type: object
+                    properties:
+                        username:
+                            type: string
+                            default: admin@bookapi.com
+                        password:
+                            type: string
+                            default: password
+            securitySchemes:
+                bearerAuth:
+                    type: apiKey
+                    in: header
+                    name: Authorization
+        security:
+            - bearerAuth: []
+        areas:
+            path_patterns:
+                - '^/api(?!/doc$)' # routes sous /api sauf /api/doc
