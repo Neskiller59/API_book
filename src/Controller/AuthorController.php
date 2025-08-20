@@ -5,71 +5,115 @@ namespace App\Controller;
 use App\Entity\Author;
 use App\Repository\AuthorRepository;
 use Doctrine\ORM\EntityManagerInterface;
-use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
-use Symfony\Component\Serializer\SerializerInterface;
+use Symfony\Component\HttpFoundation\JsonResponse;
+use JMS\Serializer\SerializerInterface;
+use JMS\Serializer\SerializationContext;
+use JMS\Serializer\DeserializationContext;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
+use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 #[Route('/api/authors')]
-final class AuthorController extends AbstractController
+class AuthorController extends AbstractController
 {
-    #[Route('', name: 'get_all_authors', methods: ['GET'])]
-    public function getAllAuthors(AuthorRepository $authorRepository): JsonResponse
-    {
-        $authors = $authorRepository->findAll();
+    #[Route('', name: 'authors', methods: ['GET'])]
+    public function getAllAuthors(
+        AuthorRepository $authorRepository,
+        SerializerInterface $serializer,
+        Request $request
+    ): JsonResponse {
+        $page = $request->query->getInt('page', 1);
+        $limit = $request->query->getInt('limit', 5);
 
-        return $this->json($authors, 200, [], ['groups' => ['getAuthor']]);
+        $authors = $authorRepository->findAllWithPagination($page, $limit);
+        $json = $serializer->serialize($authors, 'json', SerializationContext::create()->setGroups(['getAuthor']));
+
+        return new JsonResponse($json, Response::HTTP_OK, [], true);
     }
 
-    #[Route('/{id}', name: 'get_author', methods: ['GET'])]
-    public function getAuthor(Author $author): JsonResponse
-    {
-        return $this->json($author, 200, [], ['groups' => ['getAuthor']]);
+    #[Route('/{id}', name: 'getAuthor', methods: ['GET'])]
+    public function getDetailAuthor(
+        Author $author,
+        SerializerInterface $serializer
+    ): JsonResponse {
+        $json = $serializer->serialize($author, 'json', SerializationContext::create()->setGroups(['getAuthor']));
+        return new JsonResponse($json, Response::HTTP_OK, [], true);
     }
 
-    #[Route('', name: 'create_author', methods: ['POST'])]
+    #[Route('', name: 'createAuthor', methods: ['POST'])]
     public function createAuthor(
         Request $request,
         SerializerInterface $serializer,
-        EntityManagerInterface $em
+        EntityManagerInterface $em,
+        UrlGeneratorInterface $urlGenerator,
+        ValidatorInterface $validator
     ): JsonResponse {
         /** @var Author $author */
         $author = $serializer->deserialize($request->getContent(), Author::class, 'json');
+
+        $errors = $validator->validate($author);
+        if (count($errors) > 0) {
+            $errorMessages = [];
+            foreach ($errors as $error) {
+                $errorMessages[$error->getPropertyPath()] = $error->getMessage();
+            }
+            return new JsonResponse($errorMessages, Response::HTTP_BAD_REQUEST);
+        }
+
         $em->persist($author);
         $em->flush();
 
-        return $this->json($author, 201, [], ['groups' => ['getAuthor']]);
+        $jsonAuthor = $serializer->serialize($author, 'json', SerializationContext::create()->setGroups(['getAuthor']));
+        $location = $urlGenerator->generate('getAuthor', ['id' => $author->getId()], UrlGeneratorInterface::ABSOLUTE_URL);
+
+        return new JsonResponse($jsonAuthor, Response::HTTP_CREATED, ['Location' => $location], true);
     }
 
-    #[Route('/{id}', name: 'update_author', methods: ['PUT'])]
+    #[Route('/{id}', name: 'updateAuthor', methods: ['PUT', 'PATCH'])]
     public function updateAuthor(
         Request $request,
-        Author $author,
         SerializerInterface $serializer,
-        EntityManagerInterface $em
+        Author $currentAuthor,
+        EntityManagerInterface $em,
+        ValidatorInterface $validator
     ): JsonResponse {
+        $context = DeserializationContext::create();
+        $context->setAttribute('target', $currentAuthor);
+
+        /** @var Author $updatedAuthor */
         $updatedAuthor = $serializer->deserialize(
             $request->getContent(),
             Author::class,
             'json',
-            ['object_to_populate' => $author]
+            $context
         );
+
+        $errors = $validator->validate($updatedAuthor);
+        if (count($errors) > 0) {
+            $errorMessages = [];
+            foreach ($errors as $error) {
+                $errorMessages[$error->getPropertyPath()] = $error->getMessage();
+            }
+            return new JsonResponse($errorMessages, Response::HTTP_BAD_REQUEST);
+        }
 
         $em->persist($updatedAuthor);
         $em->flush();
 
-        return $this->json($updatedAuthor, 200, [], ['groups' => ['getAuthor']]);
+        return new JsonResponse(null, Response::HTTP_NO_CONTENT);
     }
 
-    #[Route('/{id}', name: 'delete_author', methods: ['DELETE'])]
+    #[Route('/{id}', name: 'deleteAuthor', methods: ['DELETE'])]
     public function deleteAuthor(
         Author $author,
         EntityManagerInterface $em
     ): JsonResponse {
-        $em->remove($author); // ⚡ Grâce à cascade={"remove"} sur l'entité Author → les Books liés seront supprimés
+        $em->remove($author);
         $em->flush();
 
-        return new JsonResponse(null, 204);
+        return new JsonResponse(null, Response::HTTP_NO_CONTENT);
     }
 }
