@@ -7,6 +7,7 @@ use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Annotation\Groups;
 use Symfony\Component\Validator\Constraints as Assert;
 use Hateoas\Configuration\Annotation as Hateoas;
+use JMS\Serializer\Annotation\Since; 
 
 /**
  * @Hateoas\Relation(
@@ -46,8 +47,10 @@ class Book
     #[Groups(['getBooks'])]
     private ?Author $author = null;
 
-    #[ORM\Column(length: 255)]
-    private ?string $comment = null;
+    #[ORM\Column(type: "text", nullable: true)]
+    #[Groups(['getBooks'])]
+    #[Since("2.0")]
+    private  $comment;
 
     public function getId(): ?int
     {

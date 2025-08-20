@@ -6,11 +6,12 @@ namespace App\Controller;
 use App\Entity\Book;
 use App\Repository\BookRepository;
 use App\Repository\AuthorRepository;
+use App\Service\VersioningService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\Routing\Annotation\Route;
 use JMS\Serializer\SerializerInterface;
 use JMS\Serializer\SerializationContext;
 use JMS\Serializer\DeserializationContext;
@@ -24,6 +25,7 @@ use Symfony\Contracts\Cache\ItemInterface;
 #[Route('/api/books')]
 class BookController extends AbstractController
 {
+    // ---------------- List with pagination ----------------
     #[Route('', name: 'books_list', methods: ['GET'])]
     public function getAllBooks(
         BookRepository $bookRepository,
@@ -44,13 +46,25 @@ class BookController extends AbstractController
         return new JsonResponse($jsonBookList, Response::HTTP_OK, [], true);
     }
 
+    // ---------------- Get detail book ----------------
     #[Route('/{id}', name: 'books_detail', methods: ['GET'])]
-    public function getBook(Book $book, SerializerInterface $serializer): JsonResponse
-    {
-        $json = $serializer->serialize($book, 'json', SerializationContext::create()->setGroups(['getBooks']));
-        return new JsonResponse($json, Response::HTTP_OK, [], true);
+    public function getBook(
+        Book $book,
+        SerializerInterface $serializer,
+        VersioningService $versioningService
+    ): JsonResponse {
+        $version = $versioningService->getVersion();
+
+        $context = SerializationContext::create()
+            ->setGroups(['getBooks'])
+            ->setVersion($version);
+
+        $jsonBook = $serializer->serialize($book, 'json', $context);
+
+        return new JsonResponse($jsonBook, Response::HTTP_OK, [], true);
     }
 
+    // ---------------- Create book ----------------
     #[Route('', name: 'books_create', methods: ['POST'])]
     #[IsGranted('ROLE_ADMIN', message: 'Vous n\'avez pas les droits pour créer un livre.')]
     public function createBook(
@@ -94,6 +108,7 @@ class BookController extends AbstractController
         return new JsonResponse($jsonBook, Response::HTTP_CREATED, ['Location' => $location], true);
     }
 
+    // ---------------- Update book ----------------
     #[Route('/{id}', name: 'books_update', methods: ['PUT', 'PATCH'])]
     #[IsGranted('ROLE_ADMIN', message: 'Vous n\'avez pas les droits suffisants pour éditer un livre.')]
     public function updateBook(
@@ -137,6 +152,7 @@ class BookController extends AbstractController
         return new JsonResponse(null, Response::HTTP_NO_CONTENT);
     }
 
+    // ---------------- Delete book ----------------
     #[Route('/{id}', name: 'books_delete', methods: ['DELETE'])]
     #[IsGranted('ROLE_ADMIN', message: 'Vous n\'avez pas les droits suffisants pour supprimer un livre.')]
     public function deleteBook(Book $book, EntityManagerInterface $em, TagAwareCacheInterface $cache): JsonResponse
